@@ -1,0 +1,233 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Dashboard Kebahagiaan</title>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.3.2/papaparse.min.js"></script>
+  <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
+  <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css" />
+  <style>
+    body {
+      display: flex;
+      margin: 0;
+      font-family: 'Segoe UI', sans-serif;
+      height: 100vh; /* Pastikan tinggi halaman sesuai dengan tinggi layar */
+      overflow: hidden; /* Hilangkan scroll jika tidak diperlukan */
+    }
+    .sidebar {
+      width: 260px;
+      background: linear-gradient(180deg, #3e8ef7, #1a237e);
+      color: #fff;
+      padding: 20px;
+      box-shadow: 2px 0 10px rgba(0,0,0,0.1);
+      overflow-y: auto; /* Tambahkan scroll jika konten sidebar terlalu panjang */
+    }
+    .sidebar h2 { margin-bottom: 30px; }
+    .sidebar button {
+      display: block;
+      width: 100%;
+      margin-bottom: 15px;
+      padding: 12px;
+      background: rgba(255,255,255,0.1);
+      color: #fff;
+      border: none;
+      border-radius: 6px;
+      font-weight: bold;
+      cursor: pointer;
+      transition: 0.3s;
+    }
+    .sidebar button:hover, .sidebar button.active {
+      background: #fff;
+      color: #1a237e;
+    }
+    .main {
+      flex: 1;
+      padding: 20px;
+      background: #f5f7fa;
+      overflow-y: auto; /* Tambahkan scroll jika konten utama terlalu panjang */
+    }
+    h2 { margin-top: 0; color: #1a237e; }
+    p { margin-bottom: 10px; } /* Kurangi jarak bawah deskripsi */
+    canvas {
+      width: 900px; /* Lebar besar */
+      height: 500px; /* Tinggi besar */
+      margin: 20px auto; /* Memusatkan diagram */
+      display: block;
+    }
+    #mapContainer {
+      margin-top: 10px; /* Kurangi jarak atas */
+      background: white;
+      padding: 10px 20px;
+      border-radius: 8px;
+      box-shadow: 0 0 10px rgba(0,0,0,0.1);
+    }
+    #map {
+      height: 450px;
+      border-radius: 8px;
+      margin-top: 10px;
+    }
+  </style>
+</head>
+<body>
+  <div class="sidebar">
+    <h2>📊 Dashboard</h2>
+    <button onclick="loadSection('ringkasan')" id="btn-ringkasan">Ringkasan & Studi Kasus</button>
+    <button onclick="loadSection('pilar1')" id="btn-pilar1">Rata-rata Skor Kebahagiaan</button>
+    <button onclick="loadSection('pilar2')" id="btn-pilar2">Korelasi GDP vs Skor</button>
+    <button onclick="loadSection('pilar3')" id="btn-pilar3">Distribusi Dukungan Sosial</button>
+    <button onclick="loadSection('pilar4')" id="btn-pilar4">Komposisi Harapan Hidup</button>
+  </div>
+
+  <div class="main">
+    <h2 id="title">Dashboard Kebahagiaan</h2>
+    <p id="description">Analisis data kebahagiaan berdasarkan berbagai faktor.</p>
+    <div id="mapContainer" style="display:none;">
+      <h3>Peta Negara</h3>
+      <div id="map"></div>
+    </div>
+    <canvas id="chartCanvas"></canvas>
+  </div>
+
+<script>
+let currentChart;
+let map;
+
+function renderChart(config) {
+  const ctx = document.getElementById('chartCanvas').getContext('2d');
+  if (currentChart) currentChart.destroy();
+  currentChart = new Chart(ctx, config);
+}
+
+function loadCSV(callback) {
+  Papa.parse("Final Data (1).csv", {
+    download: true,
+    header: true,
+    complete: results => callback(results.data)
+  });
+}
+
+function showMap(data) {
+  const mapContainer = document.getElementById("mapContainer");
+  mapContainer.style.display = "block";
+  if (map) map.remove();
+  map = L.map('map').setView([20, 0], 2); // Pusatkan peta di koordinat global
+  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+    attribution: '© OpenStreetMap'
+  }).addTo(map);
+
+  // Tambahkan marker dengan data dummy jika koordinat tidak tersedia
+  data.forEach((d, i) => {
+    const lat = Math.random() * 140 - 70; // Koordinat latitude acak
+    const lon = Math.random() * 360 - 180; // Koordinat longitude acak
+    if (d.Score && d["GDP per capita"]) {
+      L.circleMarker([lat, lon], {
+        radius: 6,
+        fillColor: "#4bc0c0",
+        color: "#1a237e",
+        weight: 1,
+        opacity: 1,
+        fillOpacity: 0.8
+      }).addTo(map)
+        .bindPopup(`<b>Negara ${i + 1}</b><br><b>Score:</b> ${d.Score}<br><b>GDP:</b> ${d["GDP per capita"]}`);
+    }
+  });
+}
+
+function loadSection(section) {
+  document.querySelectorAll(".sidebar button").forEach(btn => btn.classList.remove("active"));
+  document.getElementById(`btn-${section}`).classList.add("active");
+
+  const title = document.getElementById("title");
+  const description = document.getElementById("description");
+  document.getElementById("chartCanvas").style.display = "block";
+  document.getElementById("mapContainer").style.display = "none";
+
+  loadCSV(data => {
+    if (section === "ringkasan") {
+      title.textContent = "Ringkasan & Studi Kasus";
+      description.textContent = "Studi ini bertujuan untuk menganalisis pengaruh harapan hidup sehat terhadap tingkat kebahagiaan global berdasarkan data World Happiness Report tahun 2018. Fokus utama penelitian adalah mengkaji sejauh mana indikator kesehatan, khususnya harapan hidup sehat, berkontribusi terhadap skor kebahagiaan suatu negara. Hasil analisis ini diharapkan dapat memberikan wawasan bagi pembuat kebijakan dalam meningkatkan kualitas hidup dan mendukung pencapaian SDG 3: Good Health and Well-being.";
+      if (currentChart) currentChart.destroy();
+      showMap(data);
+
+    } else if (section === "pilar1") {
+      title.textContent = "Rata-rata Skor Kebahagiaan";
+      description.textContent = "Rata-rata skor kebahagiaan berdasarkan data.";
+      const averageScore = data.reduce((sum, d) => sum + parseFloat(d.Score || 0), 0) / data.length;
+      renderChart({
+        type: 'bar',
+        data: {
+          labels: ["Rata-rata Skor"],
+          datasets: [{
+            label: "Skor Kebahagiaan",
+            data: [averageScore],
+            backgroundColor: '#4bc0c0'
+          }]
+        }
+      });
+
+    } else if (section === "pilar2") {
+      title.textContent = "Korelasi GDP vs Skor";
+      description.textContent = "Korelasi antara GDP per capita dan skor kebahagiaan.";
+      const scatterData = data.map(d => ({ x: parseFloat(d["GDP per capita"]), y: parseFloat(d.Score) }));
+      renderChart({
+        type: 'scatter',
+        data: {
+          datasets: [{
+            label: "GDP vs Skor",
+            data: scatterData,
+            backgroundColor: '#36a2eb'
+          }]
+        },
+        options: {
+          scales: {
+            x: { title: { display: true, text: 'GDP per Capita' } },
+            y: { title: { display: true, text: 'Skor Kebahagiaan' } }
+          }
+        }
+      });
+
+    } else if (section === "pilar3") {
+      title.textContent = "Distribusi Dukungan Sosial";
+      description.textContent = "Distribusi dukungan sosial berdasarkan data.";
+      const labels = data.map((_, i) => `Negara ${i + 1}`);
+      const socialSupport = data.map(d => parseFloat(d["Social support"]));
+      renderChart({
+        type: 'bar',
+        data: {
+          labels: labels,
+          datasets: [{
+            label: "Dukungan Sosial",
+            data: socialSupport,
+            backgroundColor: '#ffcd56'
+          }]
+        }
+      });
+
+    } else if (section === "pilar4") {
+      title.textContent = "Komposisi Harapan Hidup";
+      description.textContent = "Komposisi harapan hidup berdasarkan data.";
+      const labels = data.map((_, i) => `Negara ${i + 1}`);
+      const lifeExpectancy = data.map(d => parseFloat(d["Healthy life expectancy"]));
+      renderChart({
+        type: 'doughnut',
+        data: {
+          labels: labels.slice(0, 10), // Batasi ke 10 negara pertama
+          datasets: [{
+            label: "Harapan Hidup",
+            data: lifeExpectancy.slice(0, 10),
+            backgroundColor: ['#4bc0c0', '#36a2eb', '#ffcd56', '#ff6384', '#9966ff', '#c9cbcf', '#ff9f40', '#ff6384', '#4bc0c0', '#36a2eb']
+          }]
+        }
+      });
+    }
+  });
+}
+
+// Muat bagian pertama secara default
+loadSection('ringkasan');
+</script>
+
+</body>
+</html>
